@@ -3,12 +3,12 @@
     <div class="quiz-header">
       <h2>{{ quiz?.remarks ?? '' }}</h2> 
       <div class="timer">Time Left: {{ formattedTimeLeft }}</div>
-      <div>Tab Changes: {{ tabChanges }}</div>
+      <div>Tab Changes: {{ tabChanges }}</div> 
     </div>
 
     <div class="video-container" v-if="screenStream && cameraStream">
       <video :srcObject="screenStream" autoplay muted></video>
-      <video :srcObject="cameraStream" autoplay muted></video>
+      <video :srcObject="cameraStream" autoplay muted class="flipped-video"></video> 
     </div>
 
     <div v-if="questions.length > 0">
@@ -75,7 +75,7 @@ const quiz = ref(null);
 const questions = ref([]);
 const selectedAnswers = ref({});
 const markedForReview = ref({});
-const timeLeft = ref(10 * 60); // 10 minutes
+const timeLeft = ref(0);
 const tabChanges = ref(0);
 const showAnswers = ref(false);
 const mediaRecorder = ref(null);
@@ -85,6 +85,7 @@ const screenStream = ref(null);
 const cameraStream = ref(null);
 
 let windowFocused = true; 
+let lastVisibilityState = document.visibilityState;
 
 const isLoggedIn = computed(() => {
   return !!localStorage.getItem('auth_token');
@@ -92,7 +93,6 @@ const isLoggedIn = computed(() => {
 
 onMounted(async () => {
   if (!isLoggedIn.value) {
-    // Redirect to login if not logged in
     window.location.href = '/login'; 
     return; 
   }
@@ -102,6 +102,9 @@ onMounted(async () => {
     await fetchChapter();
     await fetchQuiz();
     await fetchQuestions();
+
+    const [hours, minutes] = quiz.value.time_duration.split(':');
+    timeLeft.value = (parseInt(hours) * 60 + parseInt(minutes)) * 60; 
 
     const timerInterval = setInterval(() => {
       timeLeft.value--;
@@ -141,11 +144,33 @@ onMounted(async () => {
       const videoBlob = new Blob(recordedChunks.value, { type: "video/webm" });
       const audioBlob = new Blob(audioChunks.value, { type: "audio/webm" });
 
-      // ... (your upload or download logic) ...
+      try {
+        const token = localStorage.getItem('auth_token');
+        const formData = new FormData();
+        formData.append('video', videoBlob, 'video.webm'); 
+        formData.append('audio', audioBlob, 'audio.webm'); 
+
+        const uploadResponse = await fetch(`http://127.0.0.1:5000/api/user/subjects/${subjectId}/chapters/${chapterId}/quizzes/${quizId}/recording`, {
+          method: "POST",
+          headers: {
+            'Authentication-Token': token,
+          },
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          console.error('Error uploading recording:', uploadResponse.status);
+        } else {
+          console.log('Recording uploaded successfully!');
+        }
+      } catch (error) {
+        console.error("Error uploading recording:", error);
+      }
     };
 
     mediaRecorder.value.start();
 
+    // Ensure event listeners are attached after mediaRecorder starts
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('focus', handleWindowFocus); 
@@ -164,8 +189,11 @@ onUnmounted(() => {
 });
 
 const handleVisibilityChange = () => {
-  if (document.hidden && windowFocused) {
+  console.log("Visibility changed:", document.visibilityState);
+
+  if (document.visibilityState === 'hidden') {
     tabChanges.value++;
+    console.log("Tab changes incremented:", tabChanges.value);
   }
 };
 
@@ -177,6 +205,8 @@ const handleWindowFocus = () => {
   windowFocused = true;
 };
 
+
+
 const formattedTimeLeft = computed(() => {
   const minutes = Math.floor(timeLeft.value / 60);
   const seconds = timeLeft.value % 60;
@@ -185,14 +215,48 @@ const formattedTimeLeft = computed(() => {
 
 const submitQuiz = async () => {
   if (mediaRecorder.value) {
-    mediaRecorder.value.stop();
+    mediaRecorder.value.stop(); 
   }
 
   try {
-    console.log("Submitting quiz with answers:", selectedAnswers.value);
-    console.log("Tab changes:", tabChanges.value);
+    const token = localStorage.getItem('auth_token');
+    const totalQuestions = questions.value.length;
+    let correctAnswers = 0;
+    const [hours, minutes] = quiz.value.time_duration.split(':'); 
+    const totalQuizSeconds = (parseInt(hours) * 60 + parseInt(minutes)) * 60;
+    const timeTaken = Math.max(0, totalQuizSeconds - timeLeft.value);
+
+
+    for (const question of questions.value) {
+      if (selectedAnswers.value[question.id] === question.correct_option) {
+        correctAnswers++;
+      }
+    }
+
+    const score = correctAnswers;
+
+    const scoreResponse = await fetch(`http://127.0.0.1:5000/api/user/subjects/${subjectId}/chapters/${chapterId}/quizzes/${quizId}/score`, {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json',
+        'Authentication-Token': token,
+      },
+      body: JSON.stringify({
+        total_scored: score, 
+        total_marks: totalQuestions, 
+        remarks: JSON.stringify(selectedAnswers.value), 
+        tab_changes: tabChanges.value,
+        time_took_to_attempt_test: timeTaken, 
+        duration_quiz: totalQuizSeconds,  
+      }),
+    });
+
+    if (!scoreResponse.ok) {
+      console.error('Error storing score:', scoreResponse.status);
+    }
+
     showAnswers.value = true;
-    // ... (your logic to submit the quiz data to the server)
+    router.push(`/user/subjects/${subjectId}/chapters/${chapterId}/quizzes`);
   } catch (error) {
     console.error("Error submitting quiz:", error);
   }
@@ -294,7 +358,6 @@ const fetchQuestions = async () => {
   }
 };
 </script>
-
 <style scoped>
 .user-quiz {
   padding: 20px;
@@ -362,7 +425,9 @@ const fetchQuestions = async () => {
 .question-actions {
   margin-top: 10px;
 }
-
+.flipped-video {
+  transform: scaleX(-1); /* Flip the video horizontally */
+}
 .question-actions button {
   margin-right: 5px;
   padding: 5px 10px;

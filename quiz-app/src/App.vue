@@ -20,29 +20,33 @@ export default {
 <style scoped>
 #app {
   display: flex;
-  height: 100vh; /* Use full height of the viewport */
-  width: 100vw; /* Use full width of the viewport */
-  overflow: hidden; /* Prevent the overall app from scrolling */
+  height: 100vh; /* Full height */
+  width: 100vw;  /* Full width */
+  overflow: hidden; 
 }
 
 .sidebar {
-  width: 250px; /* Fixed width for the sidebar */
-  background-color: #343a40; /* Dark background for the sidebar */
+  width: 250px; 
+  background-color: #343a40; 
   color: white;
   display: flex;
-  flex-direction: column; /* Stack sidebar items */
-  height: 100%; /* Full height */
-  overflow-y: auto; /* Allow scrolling inside the sidebar if content overflows */
+  flex-direction: column; 
+  height: 100%; 
+  overflow-y: auto; 
+  position: fixed; 
+  left: 0;        
+  top: 0;        
+  z-index: 10;   
 }
 
 .main-content {
-  flex-grow: 1; /* Take up the remaining space */
-  height: 100%; /* Full height */
-  background-color: #f8f9fa; /* Light background for the content area */
-  padding: 20px; /* Padding around the content */
-  overflow-y: auto; /* Allow scrolling inside the content area */
+  margin-left: 250px; /* Align to the right of the sidebar */
+  width: calc(100vw - 250px); /* Take the full remaining width */
+  padding: 20px;
+  background-color: #f8f9fa; 
+  height: 100vh; /* Full height of the viewport */
+  overflow-y: auto; 
   display: flex;
-  justify-content: center; /* Center content horizontally */
-  align-items: center; /* Center content vertically */
+  flex-direction: column;
 }
 </style>

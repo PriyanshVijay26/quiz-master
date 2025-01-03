@@ -23,12 +23,17 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+os.environ['UPLOADCARE_PUBLIC_KEY'] = '095e5f11e6c790f6a382'
+os.environ['UPLOADCARE_SECRET_KEY'] = '3d8eb4a0821925014a7e'
+
+
 UPLOADCARE_PUBLIC_KEY = os.environ.get('UPLOADCARE_PUBLIC_KEY')
 UPLOADCARE_SECRET_KEY = os.environ.get('UPLOADCARE_SECRET_KEY')
 
 print("UPLOADCARE_PUBLIC_KEY:", UPLOADCARE_PUBLIC_KEY)
 print("UPLOADCARE_SECRET_KEY:", UPLOADCARE_SECRET_KEY)
 
+uploadcare = Uploadcare(public_key=UPLOADCARE_PUBLIC_KEY, secret_key=UPLOADCARE_SECRET_KEY)
 
 
 
@@ -666,6 +671,155 @@ class UserQuestionResource(Resource):
             return make_response(jsonify({'message': 'Failed to retrieve questions', 'error': str(e)}), 500)
 
 
+class UserQuizScoreResource(Resource):
+    @auth_required('token')
+    @roles_required('user')
+    def post(self, subject_id, chapter_id, quiz_id):
+        """
+        Create a new score entry for a user's quiz attempt.
+        """
+        try:
+            data = request.get_json()
+            total_scored = data.get('total_scored')
+            total_marks = data.get('total_marks')
+            remarks = data.get('remarks')  # You can store additional information here
+            tab_changes = data.get('tab_changes')
+            time_took_to_attempt_test = data.get('time_took_to_attempt_test')
+            duration_quiz = data.get('duration_quiz')
+
+            # You might want to add validation here to ensure the data is valid
+
+            new_score = Score(
+                quiz_id=quiz_id,
+                user_id=current_user.id,  # Assuming you have access to the current user
+                time_stamp_of_attempt=datetime.now(),
+                total_scored=total_scored,
+                total_marks=total_marks,
+                remarks=remarks,
+                tab_changes=tab_changes,
+                time_took_to_attempt_test=time_took_to_attempt_test,
+                duration_quiz=duration_quiz,
+            )
+            db.session.add(new_score)
+            db.session.commit()
+
+            return make_response(jsonify({'message': 'Score recorded successfully'}), 201)
+        except Exception as e:
+            db.session.rollback()
+            return make_response(jsonify({'message': 'Failed to record score', 'error': str(e)}), 500)
+        
+
+
+
+
+class UserQuizRecordingResource(Resource):
+    @auth_required('token')
+    @roles_required('user')
+    def post(self, subject_id, chapter_id, quiz_id):
+        """
+        Upload quiz recording (video + audio) to Uploadcare and store URLs in Score model.
+        """
+        try:
+            print("Request received")  # Debug print
+
+            if 'video' not in request.files or 'audio' not in request.files:
+                print("Missing video or audio file")  # Debug print
+                return make_response(jsonify({'message': 'Missing video or audio file'}), 400)
+
+            video_file = request.files['video']
+            audio_file = request.files['audio']
+
+            if video_file.filename == '' or audio_file.filename == '':
+                print("No selected video or audio file")  # Debug print
+                return make_response(jsonify({'message': 'No selected video or audio file'}), 400)
+
+            print("Uploading files to Uploadcare")  # Debug print
+            # Upload the files to Uploadcare
+            video_url = uploadcare.upload(video_file)
+            audio_url = uploadcare.upload(audio_file)
+            print(video_url)
+            print(audio_url)
+            print("Files uploaded successfully")  # Debug print
+
+            print("Storing URLs in Score model")  # Debug print
+            # Store the URLs in the Score model
+            score = Score.query.filter_by(user_id=current_user.id, quiz_id=quiz_id).first()
+            if score:
+                score.recording_url = f"video:{video_url}, audio:{audio_url}"
+                db.session.commit()
+            print("URLs stored in Score model")  # Debug print
+
+            print("Returning success response")  # Debug print
+            return make_response(jsonify({'message': 'Recording uploaded successfully'}), 201)
+        except Exception as e:
+            print(f"Error uploading recording: {e}")  # Debug print with exception details
+            return make_response(jsonify({'message': 'Failed to upload recording', 'error': str(e)}), 500)
+        
+
+
+class UserQuizResultResource(Resource):
+    @auth_required('token')
+    @roles_required('user')
+    def get(self, subject_id, chapter_id, quiz_id):
+        """
+        Get the result of a quiz for the current user.
+        """
+        try:
+            # Get the quiz details
+            quiz = Quiz.query.get_or_404(quiz_id)
+
+            # Get the user's score for the quiz
+            score = Score.query.filter_by(user_id=current_user.id, quiz_id=quiz_id).first_or_404()
+
+            # You can include additional data in the response if needed
+            result = {
+                'quiz_name': quiz.remarks,  # Or quiz.name if you have a name field
+                'time_stamp_of_attempt': score.time_stamp_of_attempt,
+                'total_scored': score.total_scored,
+                'total_marks': score.total_marks,
+                'tab_changes': score.tab_changes,
+                'time_taken': score.time_took_to_attempt_test,  # You can rename this field in the response
+                'recording_url': score.recording_url,
+            }
+
+            return make_response(jsonify(result), 200)
+        except Exception as e:
+            return make_response(jsonify({'message': 'Failed to retrieve quiz result', 'error': str(e)}), 500)
+
+
+
+class UserQuizAccessResource(Resource):
+    @auth_required('token')
+    @roles_required('user')
+    def get(self, subject_id, chapter_id, quiz_id):
+        """
+        Check if the user can start or view the result of a quiz.
+        """
+        try:
+            quiz = Quiz.query.get_or_404(quiz_id)
+            score = Score.query.filter_by(user_id=current_user.id, quiz_id=quiz_id).first()
+
+            # Check if the user has already attempted the quiz
+            if score:
+                return make_response(jsonify({'can_start': False, 'can_view_result': True}), 200)
+            else:
+                return make_response(jsonify({'can_start': True, 'can_view_result': False}), 200)
+
+        except Exception as e:
+            return make_response(jsonify({'message': 'Failed to check quiz access', 'error': str(e)}), 500)
+
+# API registration
+api.add_resource(UserQuizAccessResource, '/api/user/subjects/<int:subject_id>/chapters/<int:chapter_id>/quizzes/<int:quiz_id>/access')
+
+
+
+
+api.add_resource(UserQuizResultResource, '/api/user/subjects/<int:subject_id>/chapters/<int:chapter_id>/quizzes/<int:quiz_id>/result')
+        
+
+api.add_resource(UserQuizRecordingResource, '/api/user/subjects/<int:subject_id>/chapters/<int:chapter_id>/quizzes/<int:quiz_id>/recording')
+
+api.add_resource(UserQuizScoreResource, '/api/user/subjects/<int:subject_id>/chapters/<int:chapter_id>/quizzes/<int:quiz_id>/score')
 
 api.add_resource(UserQuestionResource,
                  '/api/user/subjects/<int:subject_id>/chapters/<int:chapter_id>/quizzes/<int:quiz_id>/questions',

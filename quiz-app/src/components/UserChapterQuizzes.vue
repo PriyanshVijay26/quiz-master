@@ -3,9 +3,12 @@
     <h2>{{ subject?.name ?? '' }} - {{ chapter?.name ?? '' }} - Quizzes</h2>
     <ul>
       <li v-for="quiz in quizzes" :key="quiz.id">
-        {{ quiz.name }} ({{ quiz.date_of_quiz }}) 
-        <button @click="startQuiz(quiz.id)" class="btn btn-primary">
+        {{ quiz.name }} ({{ quiz.date_of_quiz }})
+        <button v-if="quiz.can_start" @click="startQuiz(quiz.id)" class="btn btn-primary">
           Start Test
+        </button>
+        <button v-if="quiz.can_view_result" @click="checkResult(quiz.id)" class="btn btn-secondary">
+          Check Result
         </button>
       </li>
     </ul>
@@ -89,7 +92,25 @@ const fetchQuizzes = async () => {
       console.error('Error fetching quizzes:', response.status);
       return;
     }
-    quizzes.value = await response.json();
+    const quizzesData = await response.json();
+
+    // Fetch quiz access for each quiz
+    for (const quiz of quizzesData) {
+      const accessResponse = await fetch(`http://127.0.0.1:5000/api/user/subjects/${subjectId}/chapters/${chapterId}/quizzes/${quiz.id}/access`, {
+        headers: {
+          'Authentication-Token': token,
+        },
+      });
+      if (accessResponse.ok) {
+        const accessData = await accessResponse.json();
+        quiz.can_start = accessData.can_start;
+        quiz.can_view_result = accessData.can_view_result;
+      } else {
+        console.error('Error fetching quiz access:', accessResponse.status);
+      }
+    }
+
+    quizzes.value = quizzesData;
     console.log('Quizzes:', quizzes.value);
   } catch (error) {
     console.error('Error fetching quizzes:', error);
@@ -98,6 +119,9 @@ const fetchQuizzes = async () => {
 
 const startQuiz = (quizId) => {
   router.push(`/user/subjects/${subjectId}/chapters/${chapterId}/quizzes/${quizId}`);
+};
+const checkResult = (quizId) => {
+  router.push(`/user/subjects/${subjectId}/chapters/${chapterId}/quizzes/${quizId}/result`); 
 };
 </script>
   <style scoped>
@@ -123,4 +147,14 @@ const startQuiz = (quizId) => {
     cursor: pointer;
     margin-left: 10px; /* Add some space between the quiz info and the button */
   }
-  </style>
+
+.btn-secondary {  /* Add styles for the Check Result button */
+  background-color: #6c757d; 
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 10px; 
+}
+</style>

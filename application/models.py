@@ -128,9 +128,15 @@ class Score(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     time_stamp_of_attempt = db.Column(db.DateTime())
     total_scored = db.Column(db.Integer)
-    remarks = db.Column(db.String(255))  # You can store the user selected options
+    total_marks = db.Column(db.Integer)  # Add total_marks
+    remarks = db.Column(db.String(255))  
+    tab_changes = db.Column(db.Integer)  # Add tab_changes
+    time_took_to_attempt_test = db.Column(db.Integer)  # Add time_took_to_attempt_test (in seconds)
+    duration_quiz = db.Column(db.Integer)  # Add duration_quiz (in seconds)
+    recording_url = db.Column(db.String(255))
     quiz = db.relationship("Quiz", backref=db.backref("scores", lazy="dynamic"))
     user = db.relationship("User", backref=db.backref("scores", lazy="dynamic"))
+
 
     def __str__(self):
         return f"Score {self.id} - User: {self.user.email}, Quiz: {self.quiz.id}"
@@ -142,7 +148,12 @@ class Score(db.Model):
             'user_id': self.user_id,
             'time_stamp_of_attempt': self.time_stamp_of_attempt,
             'total_scored': self.total_scored,
+            'total_marks': self.total_marks,  # Include total_marks in the dictionary
             'remarks': self.remarks,
+            'tab_changes': self.tab_changes,
+            'time_took_to_attempt_test': self.time_took_to_attempt_test,
+            'duration_quiz': self.duration_quiz,
+            'recording_url': self.recording_url,
         }
 
 

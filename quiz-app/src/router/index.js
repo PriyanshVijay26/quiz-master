@@ -14,6 +14,7 @@ import UserChapterQuizzes from '../components/UserChapterQuizzes.vue';
 
 import UserQuiz from '../components/UserQuiz.vue'; // Import the new component
 
+import UserQuizResult from '../components/UserQuizResult.vue';
 
 const routes = [
   { path: '/', component: HomePage },
@@ -28,6 +29,9 @@ const routes = [
   // ... other routes
   { path: '/user/subjects/:subjectId/chapters/:chapterId/quizzes', component: UserChapterQuizzes },
   { path: '/user/subjects/:subjectId/chapters/:chapterId/quizzes/:quizId', component: UserQuiz },
+  { 
+    path: '/user/subjects/:subjectId/chapters/:chapterId/quizzes/:quizId/result',component: UserQuizResult 
+  },
 ];
 
 const router = createRouter({
