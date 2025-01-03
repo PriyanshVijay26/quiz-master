@@ -6,13 +6,12 @@
     <p><strong>Score:</strong> {{ result.total_scored }} / {{ result.total_marks }}</p>
     <p><strong>Tab Changes:</strong> {{ result.tab_changes }}</p>
     <p><strong>Time Taken:</strong> {{ formatTime(result.time_taken) }}</p>
+    <p v-if="result.flagged" class="flagged">Flagged</p> 
     <div v-if="result.recording_url">
       <h3>Recording</h3>
-      <p v-for="(url, type) in recordingUrls" :key="type"> 
-        <a :href="url" target="_blank">Download {{ type }}</a> 
-  
+      <p v-for="(url, type) in recordingUrls" :key="type">
+        <a :href="url" target="_blank">Download {{ type }}</a>
       </p>
-      
     </div>
   </div>
   <div v-else>Loading result...</div>
@@ -91,7 +90,12 @@
   </script>
   
   <style scoped>
-  .user-quiz-result {
-    padding: 20px;
-  }
-  </style>
+.user-quiz-result {
+  padding: 20px;
+}
+
+.flagged {  
+  color: red;
+  font-weight: bold;
+}
+</style>

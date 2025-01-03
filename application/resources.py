@@ -780,6 +780,7 @@ class UserQuizResultResource(Resource):
                 'tab_changes': score.tab_changes,
                 'time_taken': score.time_took_to_attempt_test,  # You can rename this field in the response
                 'recording_url': score.recording_url,
+                'flagged': score.flagged,
             }
 
             return make_response(jsonify(result), 200)
@@ -807,6 +808,64 @@ class UserQuizAccessResource(Resource):
 
         except Exception as e:
             return make_response(jsonify({'message': 'Failed to check quiz access', 'error': str(e)}), 500)
+
+
+class AdminScoreFlagResource(Resource):
+    @auth_required('token')
+    @roles_required('admin')
+    def put(self, score_id):
+        """
+        Flag a score for review by admin.
+        """
+        try:
+            score = Score.query.get_or_404(score_id)
+            data = request.get_json()
+            flag = data.get('flag')  # Get the flag value (boolean)
+
+            if flag is not None:
+                score.flagged = flag  # Update the flagged attribute of the Score object
+                db.session.commit()
+                return make_response(jsonify({'message': 'Score flagged successfully'}), 200)
+            else:
+                return make_response(jsonify({'message': 'Flag value is required'}), 400)
+
+        except Exception as e:
+            return make_response(jsonify({'message': 'Failed to flag score', 'error': str(e)}), 500)
+
+
+
+class AdminScoreResource(Resource):
+    @auth_required('token')
+    @roles_required('admin')
+    def get(self):
+        """
+        Get all scores (admin only).
+        """
+        try:
+            scores = Score.query.all()
+            score_list = []
+            for score in scores:
+                score_data = score.to_dict()
+                score_data['quiz_name'] = score.quiz.remarks  # Add quiz name
+                score_data['user_email'] = score.user.email  # Add user email
+                score_list.append(score_data)
+
+            return make_response(jsonify(score_list), 200)
+        except Exception as e:
+            return make_response(jsonify({'message': 'Failed to retrieve scores', 'error': str(e)}), 500)
+
+# API registration
+api.add_resource(AdminScoreResource, '/api/admin/scores')
+
+
+
+
+
+
+
+
+api.add_resource(AdminScoreFlagResource, '/api/admin/scores/<int:score_id>/flag')
+
 
 # API registration
 api.add_resource(UserQuizAccessResource, '/api/user/subjects/<int:subject_id>/chapters/<int:chapter_id>/quizzes/<int:quiz_id>/access')

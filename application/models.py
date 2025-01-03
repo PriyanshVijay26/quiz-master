@@ -134,6 +134,7 @@ class Score(db.Model):
     time_took_to_attempt_test = db.Column(db.Integer)  # Add time_took_to_attempt_test (in seconds)
     duration_quiz = db.Column(db.Integer)  # Add duration_quiz (in seconds)
     recording_url = db.Column(db.String(255))
+    flagged = db.Column(db.Boolean, default=False)
     quiz = db.relationship("Quiz", backref=db.backref("scores", lazy="dynamic"))
     user = db.relationship("User", backref=db.backref("scores", lazy="dynamic"))
 
@@ -154,6 +155,7 @@ class Score(db.Model):
             'time_took_to_attempt_test': self.time_took_to_attempt_test,
             'duration_quiz': self.duration_quiz,
             'recording_url': self.recording_url,
+            'flagged': self.flagged,
         }
 
 

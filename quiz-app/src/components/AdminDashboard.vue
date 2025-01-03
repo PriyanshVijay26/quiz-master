@@ -1,6 +1,7 @@
 <template>
   <div class="admin-dashboard">
     <h2>Admin Dashboard</h2>
+    <button @click="goToScores">View User Scores</button> <div v-if="isAdmin" class="subjects"></div>
     <div v-if="isAdmin" class="subjects">
       <h3>Subjects</h3>
       <ul>
@@ -134,6 +135,9 @@ const deleteSubject = (subjectId) => {
         console.error("Error deleting subject:", error);
       });
   }
+};
+const goToScores = () => {
+  router.push('/admin/scores'); // Navigate to the user scores page
 };
 
 const addSubject = () => {
