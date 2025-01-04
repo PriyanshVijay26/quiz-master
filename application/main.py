@@ -13,6 +13,7 @@ from celery.schedules import crontab
 from resources import api
 from flask_uploads import UploadSet, configure_uploads, IMAGES, DOCUMENTS, patch_request_class
 import secrets
+from flask_socketio import SocketIO
 
 db = SQLAlchemy()
 from models import *
@@ -76,12 +77,16 @@ def create_app():
     api.init_app(app)
     excel.init_excel(app)
     app.security = Security(app, datastore)
+    socketio = SocketIO(app, cors_allowed_origins="*")  # Initialize SocketIO
+    from resources import ChatNamespace  
 
-    return app
+    socketio.on_namespace(ChatNamespace('/chat')) 
+
+    return app,socketio
 
 # ... (rest of your code) ...
 
-app = create_app()
+app,socketio=create_app()
 celery_app = celery_init_app(app)
 
 
@@ -100,4 +105,4 @@ def celery_job(sender,**kwargs):
 # ... (rest of your code) ...
 if __name__ == '__main__':
     initialize_sample_data()
-    app.run(debug=True)
+    socketio.run(app, debug=True)  # Run the app with SocketIO

@@ -13,6 +13,9 @@ from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from pyuploadcare import Uploadcare
 import os
+from flask_socketio import Namespace, emit, join_room, leave_room
+
+
 
 api = Api()
 
@@ -853,6 +856,147 @@ class AdminScoreResource(Resource):
             return make_response(jsonify(score_list), 200)
         except Exception as e:
             return make_response(jsonify({'message': 'Failed to retrieve scores', 'error': str(e)}), 500)
+        
+
+
+
+
+class ChatNamespace(Namespace):
+    
+    def on_connect(self):
+        
+        print('User connected')
+
+    def on_disconnect(self):
+        print('User disconnected')
+
+    @auth_required('token')  # Use Flask-Security's auth_required decorator
+    def on_join(self, data):
+        room = data['room']
+        join_room(room)
+        print(f'User joined room: {room}')
+
+    @auth_required('token')
+    def on_leave(self, data):
+        room = data['room']
+        leave_room(room)
+        print(f'User left room: {room}')
+
+    @auth_required('token')
+    def on_new_message(self, data):
+        user = current_user
+        print("Received new_message event:", data)
+        message = data.get('message')
+        room = data.get('room')  
+
+        if not message or not room:
+            emit('error', {'message': 'Missing message or room'})
+            return
+
+        try:
+            # Determine recipient based on the room
+            recipient_id = determine_recipient(user, room)
+
+            if recipient_id is None:
+                emit('error', {'message': 'Could not determine recipient'})
+                return
+
+            # Save new message to the database
+            new_message = ChatMessage(
+                sender_id=user.id,
+                recipient_id=recipient_id,
+                message=message
+            )
+            db.session.add(new_message)
+            db.session.commit()
+
+            # Emit the message to the room
+            emit('new_message', {
+                'id': new_message.id,
+                'sender_id': new_message.sender_id,
+                'sender_name': user.email,
+                'message': new_message.message,
+                'timestamp': new_message.timestamp.isoformat()
+            }, room=room)
+
+        except Exception as e:
+            # Log and handle any errors during message creation or database interaction
+            print(f"Error saving message: {e}")
+            emit('error', {'message': 'Failed to save message'})
+
+
+
+def determine_recipient(user, room):
+    """
+    Determines the recipient of a chat message based on the room format.
+
+    Args:
+      user: The User object of the sender.
+      room: The name of the chat room (format: 'user_<id>_admin').
+
+    Returns:
+      The ID of the recipient user (admin or regular user), or None if it cannot be determined.
+    """
+    try:
+        # If the sender is an admin, the recipient is the user in the room name (e.g., 'user_2_admin')
+        if user.has_role('admin'):
+            user_id = int(room.split('_')[1])  # Extract user ID from 'user_<id>_admin'
+            print(f"Determined recipient user_id: {user_id} (admin sending message to user)")
+            return user_id
+        else:
+            # If the sender is a regular user, the recipient is the admin
+            admin = User.query.filter_by(email='admin@example.com').first()
+            if admin:
+                print(f"Determined recipient admin_id: {admin.id} (user sending message to admin)")
+                return admin.id
+            return None
+    except (ValueError, AttributeError, IndexError) as e:
+        # Handle potential errors in parsing the room name or fetching the user/admin
+        print(f"Error determining recipient: {e}")
+        return None
+
+
+
+
+class ChatMessageResource(Resource):
+    @auth_required('token')
+    def get(self):  # Removed @roles_required
+        """
+        Get all chat messages for the current user (both users and admins).
+        """
+        try:
+            user = current_user
+            messages = ChatMessage.query.filter(
+                (ChatMessage.sender_id == user.id) | (ChatMessage.recipient_id == user.id)
+            ).order_by(ChatMessage.timestamp).all()
+
+            return make_response(jsonify([message.to_dict() for message in messages]), 200)
+        except Exception as e:
+            return make_response(jsonify({'message': 'Failed to retrieve messages', 'error': str(e)}), 500)
+
+
+
+class CurrentUserResource(Resource):
+    @auth_required('token')
+    def get(self):
+        """
+        Get the current user's ID.
+        """
+        try:
+            user_id = current_user.id
+            return make_response(jsonify({'user_id': user_id}), 200)
+        except Exception as e:
+            return make_response(jsonify({'message': 'Failed to get user ID', 'error': str(e)}), 500)
+
+# API registration
+api.add_resource(CurrentUserResource, '/api/user/current_user_id')
+
+
+
+
+# API registration
+api.add_resource(ChatMessageResource, '/api/chat_messages')  
+        
 
 # API registration
 api.add_resource(AdminScoreResource, '/api/admin/scores')

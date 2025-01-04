@@ -2,6 +2,7 @@
   <div class="admin-dashboard">
     <h2>Admin Dashboard</h2>
     <button @click="goToScores">View User Scores</button> <div v-if="isAdmin" class="subjects"></div>
+    <button @click="goToChat">Chat with Users</button> 
     <div v-if="isAdmin" class="subjects">
       <h3>Subjects</h3>
       <ul>
@@ -138,6 +139,9 @@ const deleteSubject = (subjectId) => {
 };
 const goToScores = () => {
   router.push('/admin/scores'); // Navigate to the user scores page
+};
+const goToChat = () => {
+  router.push('/admin/chat');  // Navigate to the admin chat page
 };
 
 const addSubject = () => {
